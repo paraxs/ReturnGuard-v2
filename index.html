@@ -872,6 +872,13 @@ input,select,textarea{ font-size:16px; border-radius:12px; border:1px solid var(
 (() => {
   const $ = sel => document.querySelector(sel);
   const pad = n => String(n).padStart(2,'0');
+  const registerClicks = (selectors, handler) => {
+    const list = Array.isArray(selectors) ? selectors : [selectors];
+    list.forEach(sel => {
+      const el = $(sel);
+      if (el) el.addEventListener('click', handler);
+    });
+  };
 
   function newId(){
     if (crypto && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
@@ -1474,7 +1481,11 @@ input,select,textarea{ font-size:16px; border-radius:12px; border:1px solid var(
   $('#btn_clear') && $('#btn_clear').addEventListener('click', async () => { if (!confirm('Alle offenen Einträge ins Archiv verschieben?')) return; state.items.forEach(it => it.archived = true); await store.write(state); render(); });
   $('#q') && $('#q').addEventListener('input', () => render()); $('#filter') && $('#filter').addEventListener('change', () => render()); $('#sort') && $('#sort').addEventListener('change', () => render());
 
-  $('#btn_export') && $('#btn_export').addEventListener('click', async () => { const data = JSON.stringify(state, null, 2); downloadFile('returnguard_export.json', data, 'application/json'); });
+  const handleExportJson = async () => {
+    const data = JSON.stringify(state, null, 2);
+    downloadFile('returnguard_export.json', data, 'application/json');
+  };
+  registerClicks(['#btn_export', '#rgv1-export-json'], handleExportJson);
   $('#btn_import') && $('#btn_import').addEventListener('click', async () => {
     const file = await pickFile('.json'); if (!file) return; const text = await file.text();
     try{ const data = JSON.parse(text); 
@@ -1492,15 +1503,17 @@ input,select,textarea{ font-size:16px; border-radius:12px; border:1px solid var(
 if (!data || !Array.isArray(data.items)) throw new Error('Ungültiges Format'); state = data; await store.write(state); render(); alert('Import erfolgreich.'); }
     catch(e){ alert('Import fehlgeschlagen: ' + e.message); }
   });
-  $('#btn_csv') && $('#btn_csv').addEventListener('click', async () => {
+  const handleExportCsv = () => {
     const rows = [['ID','Produkt','Händler','Kaufdatum','Rückgabefrist(Tage)','Rückgabe bis','Garantie(Monate)','Garantie bis','Preis','Archiv','Notizen']];
     state.items.forEach(it => { const {returnDue, warrantyDue} = computeDue(it);
       rows.push([ it.id, it.name, it.store, it.date, it.returnDays, returnDue, it.warrantyMonths, warrantyDue, (Number.isFinite(Number(it.price)) ? Number(it.price).toFixed(2) : '') ? (Number.isFinite(Number((Number.isFinite(Number(it.price)) ? Number(it.price).toFixed(2) : ''))) ? Number((Number.isFinite(Number(it.price)) ? Number(it.price).toFixed(2) : '')).toFixed(2) : '—').replace('.', ',') : '', it.archived ? 'ja' : 'nein', it.notes || '' ]);
     });
     const csv = rows.map(r => r.map(cell => `\"${String(cell).replace(/\"/g,'\"\"')}\"`).join(';')).join('\n');
     downloadFile('returnguard_export.csv', csv, 'text/csv');
-  });
-  $('#btn_ics7') && $('#btn_ics7').addEventListener('click', () => bulkICS(7)); $('#btn_ics14') && $('#btn_ics14').addEventListener('click', () => bulkICS(14));
+  };
+  registerClicks(['#btn_csv', '#rgv1-export-csv'], handleExportCsv);
+  registerClicks(['#btn_ics7', '#rgv1-export-ics7'], () => bulkICS(7));
+  registerClicks(['#btn_ics14', '#rgv1-export-ics14'], () => bulkICS(14));
   function bulkICS(days){
     const now = todayISO(), until = addDays(now, days);
     const items = state.items.filter(it => { if (it.archived) return false; const {returnDue, daysToReturn} = computeDue(it); if (!returnDue) return false; const d = returnDue; return d >= now && d <= until && daysToReturn >= 0; });
