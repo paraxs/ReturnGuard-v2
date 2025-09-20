@@ -7742,6 +7742,9 @@ input,select,textarea{ font-size:16px; border-radius:12px; border:1px solid var(
   };
   const EMBEDDED_VENDOR_URL_CACHE = Object.create(null);
   const SCRIPT_LOADS = Object.create(null);
+  let ocrWorker = null;
+  let ocrWorkerInit = null;
+  let ocrStatusHook = null;
 
   function getEmbeddedVendorUrl(key){
     if (!EMBEDDED_VENDOR_URL_CACHE[key]){
@@ -7772,9 +7775,28 @@ input,select,textarea{ font-size:16px; border-radius:12px; border:1px solid var(
   }
 
   async function ensureOCR(){
-    if (window.Tesseract) return;
-    const ok = await loadScriptOnce(getEmbeddedVendorUrl('tesseract'));
-    if (!ok || !window.Tesseract) throw new Error('OCR-Bibliothek konnte nicht geladen werden');
+    if (ocrWorker) return;
+    if (ocrWorkerInit){
+      await ocrWorkerInit;
+      return;
+    }
+    if (!window.Tesseract){
+      const ok = await loadScriptOnce(getEmbeddedVendorUrl('tesseract'));
+      if (!ok || !window.Tesseract) throw new Error('OCR-Bibliothek konnte nicht geladen werden');
+    }
+    ocrWorkerInit = (async () => {
+      const worker = await Tesseract.createWorker('deu+eng', 1, {
+        logger: (m) => {
+          if (ocrStatusHook) ocrStatusHook(m);
+        }
+      });
+      ocrWorker = worker;
+    })();
+    try{
+      await ocrWorkerInit;
+    }finally{
+      ocrWorkerInit = null;
+    }
   }
   async function ensureZXing(){
     if (window.ZXing) return;
@@ -8002,6 +8024,11 @@ input,select,textarea{ font-size:16px; border-radius:12px; border:1px solid var(
   // ===== Capture / OCR & parsing =====
   const drop = $('#drop'), filePick = $('#file_pick'), fileCam = $('#file_cam'), preview = $('#preview');
   const ocrUI = $('#ocr_ui'), ocrText = $('#ocr_text'), ocrInfo = $('#ocr_info'), ocrProgress = $('#ocr_progress');
+  ocrStatusHook = (m) => {
+    if (!m) return;
+    if (m.status) ocrInfo.textContent = m.status;
+    if (m.progress != null) ocrProgress.value = m.progress;
+  };
   const deskewToggle = $('#deskew_on'), binToggle = $('#binarize_on'), deskewAngleEl = $('#deskew_angle');
   ;['dragenter','dragover'].forEach(ev => drop && drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('drag'); }));
   ;['dragleave','drop'].forEach(ev => drop && drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('drag'); }));
@@ -8027,8 +8054,8 @@ input,select,textarea{ font-size:16px; border-radius:12px; border:1px solid var(
     ocrUI.classList.remove('hidden'); ocrProgress.value = 0; ocrInfo.textContent = '(wird geladen)';
     try{
       await ensureOCR();
-      const { data } = await Tesseract.recognize(canv, 'deu+eng', { logger: m => { if (m.status) ocrInfo.textContent = m.status; if (m.progress != null) ocrProgress.value = m.progress; } });
-      ocrText.value = (data && data.text ? data.text : '').trim(); ocrInfo.textContent = 'fertig';
+      const { data } = await ocrWorker.recognize(canv, 'deu+eng');
+      ocrText.value = (data && data.text ? data.text : '').trim(); ocrInfo.textContent = 'fertig'; ocrProgress.value = 1;
     }catch(err){ ocrText.value = 'OCR fehlgeschlagen: ' + err.message; ocrInfo.textContent = 'Fehler'; }
   }
   function autoDeskew(srcCanvas){
