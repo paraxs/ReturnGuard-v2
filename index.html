@@ -222,110 +222,8 @@
       transition:background 0.6s ease, color 0.6s ease;
     }
     :focus-visible{ outline:2px solid var(--focus); outline-offset:2px; border-radius:8px; }
-    header{
-      position:sticky;
-      top:0;
-      z-index:10;
-      backdrop-filter:saturate(160%) blur(14px);
-      -webkit-backdrop-filter:saturate(160%) blur(14px);
-      background:
-        linear-gradient(140deg, var(--hero-grad-3) 0%, rgba(255,255,255,0) 65%),
-        linear-gradient(180deg, var(--hero-grad-1) 0%, rgba(0,0,0,0) 80%);
-      background-color:var(--bg);
-      border-bottom:1px solid var(--line);
-      transition:background 0.6s ease, border-color 0.6s ease;
-    }
     .wrap{ max-width: 1200px; margin:0 auto; padding:18px 16px; }
-    .head{ display:flex; align-items:center; gap:12px; }
-    .logo{ width:28px; height:28px; display:inline-block; border-radius:8px; overflow:hidden; box-shadow:0 8px 20px rgba(10,132,255,0.22); }
     h1{ margin:0; font-size:22px; letter-spacing:.3px; }
-    .subtitle{ color:var(--muted); font-size:13px; margin-top:6px; }
-    .hero{
-      position:relative;
-      margin-top:18px;
-      padding:16px;
-      border-radius:calc(var(--radius) * 1.15);
-      background:linear-gradient(135deg, var(--hero-grad-1) 0%, var(--hero-grad-2) 58%, var(--hero-grad-3) 100%);
-      box-shadow:0 28px 60px rgba(10,132,255,0.18);
-      overflow:hidden;
-      display:grid;
-      gap:14px;
-    }
-    .hero::before{
-      content:"";
-      position:absolute;
-      inset:0;
-      border-radius:inherit;
-      border:1px solid var(--hero-outline);
-      pointer-events:none;
-    }
-    .hero-copy{
-      position:relative;
-      z-index:2;
-      display:grid;
-      gap:8px;
-      color:var(--hero-text);
-    }
-    .hero h2{ margin:0; font-size:20px; letter-spacing:.25px; }
-    .hero p{ margin:0; font-size:14px; opacity:0.85; }
-    .mode-toggle{ display:flex; gap:10px; flex-wrap:wrap; }
-    .mode-toggle button{
-      background:var(--surface-strong);
-      color:var(--hero-text);
-      border:1px solid transparent;
-      border-radius:999px;
-      min-width:120px;
-      box-shadow:none;
-    }
-    .mode-toggle button.is-active{
-      background:linear-gradient(140deg, #89d1ff 0%, var(--accent) 100%);
-      color:#fff;
-      border-color:transparent;
-      box-shadow:0 18px 42px rgba(10,132,255,0.35);
-    }
-    .mode-toggle button span{ display:inline-flex; align-items:center; gap:6px; font-weight:600; }
-    .parallax-scene{
-      position:relative;
-      min-height:160px;
-      border-radius:calc(var(--radius) * 0.9);
-      overflow:hidden;
-    }
-    @media (max-width:640px){
-      .parallax-scene{ min-height:120px; }
-    }
-    .parallax-scene .layer{
-      position:absolute;
-      border-radius:50%;
-      opacity:0.85;
-      transform:translate3d(0,0,0);
-      will-change:transform;
-      transition:opacity 0.6s ease;
-    }
-    .parallax-scene .layer:nth-child(1){
-      width:220px; height:220px;
-      top:-60px; right:-20px;
-      background:radial-gradient(circle at 30% 30%, rgba(255,255,255,0.85), rgba(110,189,255,0.55) 60%, rgba(10,132,255,0) 100%);
-    }
-    .parallax-scene .layer:nth-child(2){
-      width:180px; height:180px;
-      bottom:-60px; right:40px;
-      background:radial-gradient(circle at 70% 30%, rgba(255,255,255,0.75), rgba(255,158,194,0.6) 60%, rgba(255,255,255,0));
-    }
-    .parallax-scene .layer:nth-child(3){
-      width:160px; height:160px;
-      bottom:10px; left:-40px;
-      background:radial-gradient(circle at 30% 70%, rgba(255,255,255,0.7), rgba(137,255,217,0.55) 60%, rgba(255,255,255,0));
-    }
-    @media (min-width:768px){
-      .hero{
-        grid-template-columns: minmax(0, 1.1fr) minmax(160px, 0.9fr);
-        align-items:center;
-      }
-      .parallax-scene{ min-height:220px; }
-    }
-    @media (prefers-reduced-motion: reduce){
-      .parallax-scene .layer{ transition:none; transform:none !important; }
-    }
     .grid{ display:grid; grid-template-columns: 1.2fr .8fr; gap:18px; margin-top:18px; }
     @media (max-width:1050px){ .grid{ grid-template-columns: 1fr; } }
     .card{
@@ -340,7 +238,6 @@
     }
     .card .hd{ padding:14px 16px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:12px; justify-content:space-between; }
     .card .bd{ padding:16px; background:var(--card-solid); transition:background 0.5s ease; }
-    .kpi{ display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
     .pill{
       display:inline-flex; align-items:center; gap:8px; padding:8px 12px;
       border-radius:999px; border:1px solid var(--line);
@@ -426,8 +323,6 @@
     .chip.low{ background:var(--chip-low); border-color:var(--badge-due-border); color:var(--badge-due-text); }
     .chip.mid{ background:var(--chip-mid); border-color:var(--badge-soon-border); color:var(--badge-soon-text); }
     .chip.high{ background:var(--chip-high); border-color:var(--badge-ok-border); color:var(--badge-ok-text); }
-    .fab{ position:fixed; right:18px; bottom:18px; z-index:20; display:flex; gap:10px; }
-    .fab button{ border-radius:999px; padding:14px 16px; font-size:16px; box-shadow:0 12px 24px rgba(0,0,0,.35); }
     .chooser{ position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:30; }
     .chooser .box{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; width:min(520px,96vw); box-shadow:var(--shadow); }
     .chooser .opts{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:10px; }
@@ -613,25 +508,21 @@ input,select,textarea{ font-size:16px; border-radius:12px; border:1px solid var(
 </div>
 <header role="banner">
 <div class="wrap">
-<div aria-label="App-Kopfzeile" class="head">
-<span aria-hidden="true" class="logo">
-<svg viewbox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-<path d="M32 4l22 8v16c0 13.3-8.9 25.3-22 28-13.1-2.7-22-14.7-22-28V12l22-8z" fill="#0a84ff"></path>
-<path d="M28 38l-7-7 3.5-3.5L28 31l11.5-11.5L43 23 28 38z" fill="#fff"></path>
-</svg>
-</span>
+<section aria-labelledby="introTitle" class="rgv1-card">
+<div class="rgv1-grid cols-2">
 <div>
-<h1>ReturnGuard</h1>
-<div class="subtitle">Rückgabefristen &amp; Garantien – lokal, simpel, ohne Konto.</div>
+<h1 id="introTitle">ReturnGuard</h1>
+<p class="small muted">Rückgabefristen &amp; Garantien – lokal, simpel, ohne Konto.</p>
+</div>
+<div>
+<div aria-live="polite" class="status" data-scroll-reveal="" id="kpi" role="status"></div>
 </div>
 </div>
-<div aria-live="polite" class="kpi" data-scroll-reveal="" id="kpi" role="status"></div>
+</section>
 </div>
 </header>
 <!-- Mode chooser (big +) -->
-<div class="fab">
-<button class="primary" id="btn_plus" title="Neuer Eintrag" type="button">＋</button>
-</div>
+<button class="primary" hidden id="btn_plus" title="Neuer Eintrag" type="button">＋</button>
 <div class="chooser" id="chooser">
 <div class="box">
 <div><strong>Was willst du erfassen?</strong></div>
