@@ -1143,7 +1143,11 @@ input,select,textarea{ font-size:16px; border-radius:12px; border:1px solid var(
 
   // ===== Onboarding chooser =====
   const chooser = $('#chooser'); const btnPlus = $('#btn_plus'); const chooserClose = $('#chooser_close');
-  const show = id => { document.querySelectorAll('section[id^="card_"]').forEach(s => s.style.display='none'); $('#'+id).style.display='block'; window.scrollTo({top:0, behavior:'smooth'}); };
+  const show = id => {
+    document.querySelectorAll("section[id^='card_']").forEach(s => s.style.display='none');
+    $('#'+id).style.display='block';
+    window.scrollTo({top:0, behavior:'smooth'});
+  };
   btnPlus.addEventListener('click', () => { chooser.style.display='flex'; });
   chooserClose.addEventListener('click', () => { chooser.style.display='none'; });
   chooser.addEventListener('click', (e) => { if (e.target === chooser) chooser.style.display='none'; });
