@@ -8361,7 +8361,8 @@ if (!data || !Array.isArray(data.items)) throw new Error('Ungültiges Format'); 
   function handleExportCsv(){
     const rows = [['ID','Produkt','Händler','Kaufdatum','Rückgabefrist(Tage)','Rückgabe bis','Garantie(Monate)','Garantie bis','Preis','Archiv','Notizen']];
     state.items.forEach(it => { const {returnDue, warrantyDue} = computeDue(it);
-      rows.push([ it.id, it.name, it.store, it.date, it.returnDays, returnDue, it.warrantyMonths, warrantyDue, (Number.isFinite(Number(it.price)) ? Number(it.price).toFixed(2) : '') ? (Number.isFinite(Number((Number.isFinite(Number(it.price)) ? Number(it.price).toFixed(2) : ''))) ? Number((Number.isFinite(Number(it.price)) ? Number(it.price).toFixed(2) : '')).toFixed(2) : '—').replace('.', ',') : '', it.archived ? 'ja' : 'nein', it.notes || '' ]);
+      const priceFormatted = Number.isFinite(it.price) ? Number(it.price).toFixed(2).replace('.', ',') : '—';
+      rows.push([ it.id, it.name, it.store, it.date, it.returnDays, returnDue, it.warrantyMonths, warrantyDue, priceFormatted, it.archived ? 'ja' : 'nein', it.notes || '' ]);
     });
     const csv = rows.map(r => r.map(cell => `\"${String(cell).replace(/\"/g,'\"\"')}\"`).join(';')).join('\n');
     downloadFile('returnguard_export.csv', csv, 'text/csv');
