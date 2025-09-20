@@ -222,24 +222,8 @@
       transition:background 0.6s ease, color 0.6s ease;
     }
     :focus-visible{ outline:2px solid var(--focus); outline-offset:2px; border-radius:8px; }
-    header{
-      position:sticky;
-      top:0;
-      z-index:10;
-      backdrop-filter:saturate(160%) blur(14px);
-      -webkit-backdrop-filter:saturate(160%) blur(14px);
-      background:
-        linear-gradient(140deg, var(--hero-grad-3) 0%, rgba(255,255,255,0) 65%),
-        linear-gradient(180deg, var(--hero-grad-1) 0%, rgba(0,0,0,0) 80%);
-      background-color:var(--bg);
-      border-bottom:1px solid var(--line);
-      transition:background 0.6s ease, border-color 0.6s ease;
-    }
     .wrap{ max-width: 1200px; margin:0 auto; padding:18px 16px; }
-    .head{ display:flex; align-items:center; gap:12px; }
-    .logo{ width:28px; height:28px; display:inline-block; border-radius:8px; overflow:hidden; box-shadow:0 8px 20px rgba(10,132,255,0.22); }
     h1{ margin:0; font-size:22px; letter-spacing:.3px; }
-    .subtitle{ color:var(--muted); font-size:13px; margin-top:6px; }
     .hero{
       position:relative;
       margin-top:18px;
@@ -340,7 +324,6 @@
     }
     .card .hd{ padding:14px 16px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:12px; justify-content:space-between; }
     .card .bd{ padding:16px; background:var(--card-solid); transition:background 0.5s ease; }
-    .kpi{ display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
     .pill{
       display:inline-flex; align-items:center; gap:8px; padding:8px 12px;
       border-radius:999px; border:1px solid var(--line);
@@ -426,8 +409,6 @@
     .chip.low{ background:var(--chip-low); border-color:var(--badge-due-border); color:var(--badge-due-text); }
     .chip.mid{ background:var(--chip-mid); border-color:var(--badge-soon-border); color:var(--badge-soon-text); }
     .chip.high{ background:var(--chip-high); border-color:var(--badge-ok-border); color:var(--badge-ok-text); }
-    .fab{ position:fixed; right:18px; bottom:18px; z-index:20; display:flex; gap:10px; }
-    .fab button{ border-radius:999px; padding:14px 16px; font-size:16px; box-shadow:0 12px 24px rgba(0,0,0,.35); }
     .chooser{ position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:30; }
     .chooser .box{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; width:min(520px,96vw); box-shadow:var(--shadow); }
     .chooser .opts{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:10px; }
@@ -475,7 +456,7 @@
   });
   whenReady(function(){
     try{
-      var btn = $('btn_plus'), chooser = $('chooser'), close = $('chooser_close');
+      var btn = $('rgv1-fab'), chooser = $('chooser'), close = $('chooser_close');
       if(btn && chooser){
         btn.addEventListener('click', function(){ chooser.style.display='flex'; });
       }
@@ -610,27 +591,6 @@ input,select,textarea{ font-size:16px; border-radius:12px; border:1px solid var(
 <p><b>Öffne die Datei in Chrome oder Firefox</b> (teilen → „Im Browser öffnen“) oder speichere sie und öffne sie aus dem Download‑Ordner.</p>
 <p class="small" style="margin-top:10px">Hinweis: Service Worker &amp; Benachrichtigungen funktionieren nur über <b>https://</b> oder <b>http://localhost</b>.</p>
 </div>
-</div>
-<header role="banner">
-<div class="wrap">
-<div aria-label="App-Kopfzeile" class="head">
-<span aria-hidden="true" class="logo">
-<svg viewbox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-<path d="M32 4l22 8v16c0 13.3-8.9 25.3-22 28-13.1-2.7-22-14.7-22-28V12l22-8z" fill="#0a84ff"></path>
-<path d="M28 38l-7-7 3.5-3.5L28 31l11.5-11.5L43 23 28 38z" fill="#fff"></path>
-</svg>
-</span>
-<div>
-<h1>ReturnGuard</h1>
-<div class="subtitle">Rückgabefristen &amp; Garantien – lokal, simpel, ohne Konto.</div>
-</div>
-</div>
-<div aria-live="polite" class="kpi" data-scroll-reveal="" id="kpi" role="status"></div>
-</div>
-</header>
-<!-- Mode chooser (big +) -->
-<div class="fab">
-<button class="primary" id="btn_plus" title="Neuer Eintrag" type="button">＋</button>
 </div>
 <div class="chooser" id="chooser">
 <div class="box">
@@ -1142,9 +1102,9 @@ input,select,textarea{ font-size:16px; border-radius:12px; border:1px solid var(
   });
 
   // ===== Onboarding chooser =====
-  const chooser = $('#chooser'); const btnPlus = $('#btn_plus'); const chooserClose = $('#chooser_close');
+  const chooser = $('#chooser'); const fabButton = $('#rgv1-fab'); const chooserClose = $('#chooser_close');
   const show = id => { document.querySelectorAll('section[id^="card_"]').forEach(s => s.style.display='none'); $('#'+id).style.display='block'; window.scrollTo({top:0, behavior:'smooth'}); };
-  btnPlus.addEventListener('click', () => { chooser.style.display='flex'; });
+  fabButton.addEventListener('click', () => { chooser.style.display='flex'; });
   chooserClose.addEventListener('click', () => { chooser.style.display='none'; });
   chooser.addEventListener('click', (e) => { if (e.target === chooser) chooser.style.display='none'; });
   chooser.querySelectorAll('.opt').forEach(opt => opt.addEventListener('click', () => { chooser.style.display='none'; const t = opt.getAttribute('data-open'); if (t==='cap') show('card_cap'); if (t==='scan') show('card_scan'); if (t==='manual') show('card_manual'); }));
@@ -1904,10 +1864,6 @@ navigator.serviceWorker && navigator.serviceWorker.addEventListener('message', (
       try{ fab.onclick = null; }catch(e){}
       fab.addEventListener('click', function(ev){
         try{ if (ev && typeof ev.preventDefault==='function') ev.preventDefault(); }catch(e){}
-        try{
-          var plus = document.getElementById('btn_plus');
-          if (plus && typeof plus.click === 'function'){ plus.click(); return; }
-        }catch(e){}
         try{
           var chooser = document.getElementById('chooser');
           if (chooser){ chooser.style.display = 'flex'; }
