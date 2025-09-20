@@ -8320,6 +8320,15 @@ input,select,textarea{ font-size:16px; border-radius:12px; border:1px solid var(
   });
   $('#btn_clear') && $('#btn_clear').addEventListener('click', async () => { if (!confirm('Alle offenen Einträge ins Archiv verschieben?')) return; state.items.forEach(it => it.archived = true); await store.write(state); render(); });
   $('#q') && $('#q').addEventListener('input', () => render()); $('#filter') && $('#filter').addEventListener('change', () => render()); $('#sort') && $('#sort').addEventListener('change', () => render());
+  const searchBtn = document.getElementById('rgv1-search');
+  if (searchBtn){
+    searchBtn.addEventListener('click', () => {
+      const qEl = $('#q');
+      if (qEl && typeof qEl.focus === 'function'){ qEl.focus(); }
+      const listEl = document.getElementById('list');
+      if (listEl && typeof listEl.scrollIntoView === 'function'){ listEl.scrollIntoView({ behavior: 'smooth' }); }
+    });
+  }
 
   $('#btn_export') && $('#btn_export').addEventListener('click', async () => { const data = JSON.stringify(state, null, 2); downloadFile('returnguard_export.json', data, 'application/json'); });
   $('#btn_import') && $('#btn_import').addEventListener('click', async () => {
