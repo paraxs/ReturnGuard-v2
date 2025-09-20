@@ -370,9 +370,9 @@
   });
   whenReady(function(){
     try{
-      var btn = $('btn_plus'), chooser = $('chooser'), close = $('chooser_close');
-      if(btn && chooser){
-        btn.addEventListener('click', function(){ chooser.style.display='flex'; });
+      var fab = $('rgv1-fab'), chooser = $('chooser'), close = $('chooser_close');
+      if(fab && chooser){
+        fab.addEventListener('click', function(){ chooser.style.display='flex'; });
       }
       if(close){
         close.addEventListener('click', function(){ chooser.style.display='none'; });
@@ -7995,9 +7995,9 @@ input,select,textarea{ font-size:16px; border-radius:12px; border:1px solid var(
   });
 
   // ===== Onboarding chooser =====
-  const chooser = $('#chooser'); const btnPlus = $('#btn_plus'); const chooserClose = $('#chooser_close');
+  const chooser = $('#chooser'); const chooserClose = $('#chooser_close'); const fab = $('#rgv1-fab');
   const show = id => { document.querySelectorAll('section[id^="card_"]').forEach(s => s.style.display='none'); $('#'+id).style.display='block'; window.scrollTo({top:0, behavior:'smooth'}); };
-  btnPlus.addEventListener('click', () => { chooser.style.display='flex'; });
+  fab && fab.addEventListener('click', () => { chooser.style.display='flex'; });
   chooserClose.addEventListener('click', () => { chooser.style.display='none'; });
   chooser.addEventListener('click', (e) => { if (e.target === chooser) chooser.style.display='none'; });
   chooser.querySelectorAll('.opt').forEach(opt => opt.addEventListener('click', () => { chooser.style.display='none'; const t = opt.getAttribute('data-open'); if (t==='cap') show('card_cap'); if (t==='scan') show('card_scan'); if (t==='manual') show('card_manual'); }));
@@ -8777,10 +8777,6 @@ navigator.serviceWorker && navigator.serviceWorker.addEventListener('message', (
       try{ fab.onclick = null; }catch(e){}
       fab.addEventListener('click', function(ev){
         try{ if (ev && typeof ev.preventDefault==='function') ev.preventDefault(); }catch(e){}
-        try{
-          var plus = document.getElementById('btn_plus');
-          if (plus && typeof plus.click === 'function'){ plus.click(); return; }
-        }catch(e){}
         try{
           var chooser = document.getElementById('chooser');
           if (chooser){ chooser.style.display = 'flex'; }
