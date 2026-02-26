@@ -178,9 +178,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             runCatching {
                 val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
                 try {
-                    pageUris.joinToString(separator = "\n\n") { uri ->
-                        val image = InputImage.fromFilePath(getApplication(), uri)
-                        recognizer.process(image).await().text
+                    buildString {
+                        pageUris.forEachIndexed { index, uri ->
+                            if (index > 0) append("\n\n")
+                            val image = InputImage.fromFilePath(getApplication(), uri)
+                            append(recognizer.process(image).await().text)
+                        }
                     }
                 } finally {
                     recognizer.close()
