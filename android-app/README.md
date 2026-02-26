@@ -18,10 +18,17 @@ Dieses Verzeichnis enthält den Startpunkt für die native Android-App.
 1. Android Studio öffnen (`android-app` als Projekt)
 2. Gradle Sync ausführen
 3. App auf Emulator/Gerät starten
-4. OCR-Heuristiken mit realen Belegen feinjustieren (verschiedene Layouts)
-5. Danach Woche 5-6: Stabilisierung, Telemetrie, Play-Store-Readiness
+4. Smoke-Test durchführen: `docs/smoke-test-plan-week5-6.md`
+5. OCR-Heuristiken mit realen Belegen feinjustieren (verschiedene Layouts)
+6. Danach Play-Store-Readiness (Icons, Privacy, Release-Signing, QA)
 
 ## Hinweis
 
-In dieser Umgebung konnte kein Gradle-Build abgeschlossen werden, weil `java.exe` nur Java 8 liefert.
 Für Android Gradle Plugin 8.5.x ist Java 17 erforderlich.
+Lokaler Build-Befehl:
+
+```powershell
+$env:JAVA_HOME='C:\Program Files\Microsoft\jdk-17.0.18.8-hotspot'
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+.\gradlew.bat :app:assembleDebug
+```

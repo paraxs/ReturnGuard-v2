@@ -227,10 +227,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun extractPurchaseDateIso(lines: List<String>): String {
         val today = LocalDate.now()
         val candidates = buildList {
-            lines.forEachIndexed { index, line ->
+            for ((index, line) in lines.withIndex()) {
                 val lower = line.lowercase(Locale.ROOT)
-                dateRegex.findAll(line).forEach { match ->
-                    val parsed = parseDateCandidate(match.groupValues[1], match.groupValues[2], match.groupValues[3]) ?: return@forEach
+                for (match in dateRegex.findAll(line)) {
+                    val parsed = parseDateCandidate(match.groupValues[1], match.groupValues[2], match.groupValues[3]) ?: continue
                     var score = 1
                     if (index < 35) score += 1
                     if (dateHintKeywords.any { lower.contains(it) }) score += 10
@@ -251,11 +251,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun extractTotalPriceInput(lines: List<String>): String {
         val candidates = buildList {
-            lines.forEach { line ->
+            for (line in lines) {
                 val lower = line.lowercase(Locale.ROOT)
-                amountRegex.findAll(line).forEach { match ->
-                    val cents = parsePriceCents(match.value) ?: return@forEach
-                    if (cents <= 0L) return@forEach
+                for (match in amountRegex.findAll(line)) {
+                    val cents = parsePriceCents(match.value) ?: continue
+                    if (cents <= 0L) continue
                     var score = 1
                     if (totalAmountKeywords.any { lower.contains(it) }) score += 10
                     if (subtotalKeywords.any { lower.contains(it) }) score -= 4
