@@ -1368,8 +1368,9 @@ if (navigator.serviceWorker && navigator.serviceWorker.controller){ navigator.se
     return y >= 2015 && y <= (nowY + 1);
   }
   function extractBestInvoiceDate(lines){
-    const rx = /([0-3]?\d[.\/\-][01]?\d[.\/\-](?:\d{2}|\d{4}))/g;
+    const rx = /([0-3]?\d[.\/\-][01]?\d[.\/\-](?:\d{4}|\d{2}))/g;
     let best = null;
+    const nowY = new Date().getFullYear();
     for (let i = 0; i < lines.length; i++){
       const line = lines[i] || '';
       let m;
@@ -1381,6 +1382,10 @@ if (navigator.serviceWorker && navigator.serviceWorker.controller){ navigator.se
         if (/(liefer|versand|zahlung|bankeingang)/i.test(line)) score -= 2;
         if (/(tel|fax|uid|iban|bic|kundennummer|auftragsnummer|bestellnummer)/i.test(line)) score -= 8;
         if (i < Math.ceil(lines.length * 0.45)) score += 1;
+        const year = +iso.slice(0,4);
+        const age = nowY - year;
+        if (age >= 0 && age <= 3) score += 2;
+        else if (age > 8) score -= 2;
         const cand = { iso, raw:m[1], score, i };
         if (!best || cand.score > best.score || (cand.score === best.score && cand.iso > best.iso)) best = cand;
       }
@@ -1390,7 +1395,7 @@ if (navigator.serviceWorker && navigator.serviceWorker.controller){ navigator.se
   function extractItemNameFromLine(line){
     let s = sanitizeName(line || '');
     if (!s) return null;
-    if (/(zwischensumme|nettosumme|gesamtsumme|mehrwertsteuer|zahlung|versand|rechnung|uid|tel|fax|kundennummer|auftragsnummer|bestellnummer)/i.test(s)) return null;
+    if (/(zwischensumme|nettosumme|gesamtsumme|mehrwertsteuer|zahlung|versand|rechnung|uid|tel|fax|kundennummer|auftragsnummer|bestellnummer|aktionspreis|artikelbeschreibung|bezeichnung|summe\s*\(eur\))/i.test(s)) return null;
     s = s.replace(/^\s*[0-9A-Z]{1,10}\s+(?:[A-Z]{2,}\d{4,}|[A-Z0-9]{6,})\s+/i, '');
     s = s.replace(/\s+\d{1,3}(?:[.\s]\d{3})*(?:[,\.]\d{2})(?:\s+-?\d{1,3}(?:[.,]\d{2})?%?)?(?:\s+\d{1,3}(?:[.\s]\d{3})*(?:[,\.]\d{2}))?\s*$/i, '');
     s = sanitizeName(s);
@@ -1480,7 +1485,9 @@ if (navigator.serviceWorker && navigator.serviceWorker.controller){ navigator.se
     let price = null;
     let name = '';
     const storeLine = lines.find(s => /\bneureiter\b|n\s*e\s*u\s*r\s*e\s*i\s*t\s*e\s*r/i.test(s));
-    if (storeLine && !/www\./i.test(storeLine)){ store = sanitizeName(storeLine); }
+    if (storeLine && !/www\./i.test(storeLine) && !/(tel|fax)/i.test(storeLine) && !/^\s*\(/.test(storeLine)){
+      store = sanitizeName(storeLine);
+    }
     const bestDate = extractBestInvoiceDate(lines);
     if (bestDate){
       dateISO = bestDate.iso;
@@ -1538,7 +1545,7 @@ if (navigator.serviceWorker && navigator.serviceWorker.controller){ navigator.se
     const priceScore = best.score;
     if (price != null) hints.push({text:'Preis erkannt: '+price.toFixed(2)+' €', level: priceScore>=6?'high':'mid'});
     // store and name
-    const avoid = /rechn|receipt|kassenbon|quittung|ust|mwst|steuer|summe|total|betrag|kund|iban|bic|liefer|adresse|straße|str\.|plz|ust-id|ustid|uid|tel|fax|mail|email|steuer-nr|bank/i;
+    const avoid = /rechn|receipt|kassenbon|quittung|ust|mwst|steuer|summe|total|betrag|kund|iban|bic|liefer|adresse|straße|str\.|plz|ust-id|ustid|uid|tel|fax|mail|email|steuer-nr|bank|aktionspreis/i;
     const brandHints = /(amazon|mediamarkt|saturn|obi|bauhaus|ikea|spar|billa|hofer|aldi|lidl|intersport|xxx|müller|dm|google|apple|samsung|bosch|hornbach|conrad)/i;
     let store = '';
     if (/\bneureiter\b|n\s*e\s*u\s*r\s*e\s*i\s*t\s*e\s*r|neureiter-shop|drechselmaschinen/i.test(text || '')){
@@ -2340,7 +2347,27 @@ const RG_OCR = (() => {
     return {dateISO: best ? best.dateISO : null};
   }
   function extractTime(text){ const m=text.match(/\b([01]?\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?\b/); return {time:m?(m[3]?`${m[1]}:${m[2]}:${m[3]}`:`${m[1]}:${m[2]}`):null}; }
-  function extractInvoiceNumber(t){ const m=t.match(/Rechnung\s*(?:Nr|Nr\.|No|Nr:)?\s*[:#]?\s*([A-Z0-9\-\/]{4,})/i); return {invoiceNumber:m?m[1].replace(/[^\w\-\/]/g,""):null}; }
+  function isLikelyInvoiceToken(token){
+    if(!token) return false;
+    if (!/\d/.test(token)) return false;
+    if (/^\d{1,2}[.\/-]\d{1,2}[.\/-]\d{2,4}$/.test(token)) return false;
+    if (/^(?:SEITE|KOPIE|DATUM)$/i.test(token)) return false;
+    return token.length >= 4;
+  }
+  function extractInvoiceNumber(t){
+    const text = normalizeLineEndings(t || "");
+    const direct = text.match(/\bRechnung\s*(?:Nr|Nr\.|No|Nummer|#)\s*[:.]?\s*([A-Z0-9][A-Z0-9\-\/]{3,})/i);
+    if (direct && isLikelyInvoiceToken(direct[1])) return {invoiceNumber: direct[1].replace(/[^\w\-\/]/g,"")};
+    const lines = text.split("\n").map(strip).filter(Boolean);
+    for (const line of lines){
+      if (!/\brechnung\b/i.test(line)) continue;
+      const tokens = line.match(/\b[A-Z0-9][A-Z0-9\-\/]{3,}\b/g) || [];
+      for (const tok of tokens){
+        if (isLikelyInvoiceToken(tok)) return {invoiceNumber: tok.replace(/[^\w\-\/]/g,"")};
+      }
+    }
+    return {invoiceNumber:null};
+  }
   function extractVatId(t){ const mAT=t.match(/\bATU\s*[\s:]*([0-9]{8,9})\b/i); if(mAT) return {vatId:`ATU ${mAT[1]}`}; const mEU=t.match(/\b([A-Z]{2}\s*\d{8,12})\b/); return {vatId:mEU?mEU[1].replace(/\s+/g," "):null}; }
   function extractPhone(t){ const m=t.match(/\b(Tel(?:efon)?\.?[:]?)[\s]*([+0]?\d[\d\s\/\-]+)\b/i); return {phone:m?strip(m[2]):null}; }
   const totalStrongRe=/(gesamtsumme|end\s*summe|zu\s*zahlen|zahlbetrag|gesamtbetrag|total\s*due)/i;
@@ -2353,20 +2380,53 @@ const RG_OCR = (() => {
       for(const m of c){ const val=parseEuro(m[1]); if(!Number.isFinite(val)) continue; let vPenalty=0; if(val<5 && !weak && !strong) vPenalty-=1; const score=base+eur+bottom+penalty+vPenalty; if(score>best.score || (score===best.score && val>(best.value||0))){ best={score,value:val,lineIdx:i,raw:m[1]}; } }
     } return { total:best.value, totalRaw:best.raw, totalScore:best.score };
   }
+  function cleanupItemCandidate(line){
+    let s = strip(line);
+    if(!s) return "";
+    s = s.replace(/^\s*\d+\s*[A-Z]{0,4}\s+/i, '');
+    s = s.replace(/^\s*[A-Z0-9\-]{4,12}\s+/i, '');
+    s = s.replace(/^\s*[A-Z]{2,}\d{4,}\s+/i, '');
+    s = s.replace(/\s+\d{1,3}(?:[.\s]\d{3})*(?:[.,]\d{2})(?:\s+-?\d{1,3}(?:[.,]\d{2})?%?)?(?:\s+\d{1,3}(?:[.\s]\d{3})*(?:[.,]\d{2}))?\s*$/i, '');
+    return strip(s);
+  }
   function extractItemName(text){
     const lines=normalizeLineEndings(text).split("\n").map(strip).filter(Boolean);
     const idx=lines.findIndex(l=>/artikelbeschreibung|bezeichnung|positions?text|aktionspreis/i.test(l));
     if(idx<0) return {productName:null};
-    for(let i=idx+1;i<Math.min(lines.length, idx+18);i++){
-      const s=lines[i];
+    let best = null;
+    for(let i=idx+1;i<Math.min(lines.length, idx+16);i++){
+      const raw=lines[i];
+      if(!raw) continue;
+      if(/^(aktionspreis|artikelbeschreibung|bezeichnung|summe|gesamtsumme|zwischensumme|nettosumme|mehrwertsteuer)$/i.test(raw)) continue;
+      const s = cleanupItemCandidate(raw);
       if(!s) continue;
-      if((s.match(/[A-Za-zÄÖÜäöüß]/g)||[]).length<6) continue;
-      if(/(anzahl|artikelnummer|gesamt|eur|summe|^\d+\s*TE\b|\d{1,3}(?:[.\s]\d{3})*(?:[.,]\d{2}))/i.test(s)) continue;
-      return {productName:s};
+      if (/^\[[0-9]+\]/.test(s)) continue;
+      if (/(www\.|https?:|@|\.at\b|\.de\b|\.com\b)/i.test(s)) continue;
+      if (/[.!?]/.test(s)) continue;
+      if (/(allgemein|bedingungen|zahlbar|eigentum|empf(ä|ae)nger|liefer|versand|bankeingang|rechnungsdatum|kontakt)/i.test(s)) continue;
+      const words = s.split(/\s+/).filter(Boolean);
+      if (words.length > 8) continue;
+      const letters = (s.match(/[A-Za-zÄÖÜäöüß]/g)||[]).length;
+      if(letters < 6 || s.length < 8) continue;
+      if(/(gesamtsumme|zwischensumme|nettosumme|mehrwertsteuer|zahlung|versand|rechnung|uid|iban)/i.test(s)) continue;
+      const score = letters + (/\d/.test(s) ? 2 : 0) + (s.length > 18 ? 1 : 0) + Math.max(0, 14 - (i - idx));
+      if(!best || score > best.score) best = { productName: s, score };
     }
-    return {productName:null};
+    return {productName: best ? best.productName : null};
   }
-  function extractMerchantBlock(text){ const lines=normalizeLineEndings(text).split("\n").map(strip).filter(Boolean); const cut=lines.findIndex(l=>/Rechnung|Kassen\s*ID|Positionen|Bezeichnung/i.test(l)); const head=lines.slice(0, cut>0?cut:Math.min(lines.length,6)); const merchant=head[0]||null; const addr=head.slice(1,4).filter(l=>/\d|A-|AT-|straße|str\.|weg|gasse|platz|pl\./i.test(l)); return {merchant, address: addr.length?addr.join(", "):null}; }
+  function extractMerchantBlock(text){
+    const lines=normalizeLineEndings(text).split("\n").map(strip).filter(Boolean);
+    const cut=lines.findIndex(l=>/Rechnung|Kassen\s*ID|Positionen|Bezeichnung/i.test(l));
+    const head=lines.slice(0, cut>0?cut:Math.min(lines.length,12));
+    const companyLike = lines.find(l => /\b(gmbh|ag|kg|e\.u\.|ltd|llc|inc)\b/i.test(l) && !/www\.|@|iban|uid|tel|fax/i.test(l));
+    const neureiterLike = lines.find(l => /\bneureiter\b|n\s*e\s*u\s*r\s*e\s*i\s*t\s*e\s*r/i.test(l) && !/www\.|@/i.test(l));
+    let merchant = companyLike || neureiterLike || head.find(l => !/\d{4,}|tel|fax|uid|iban|www\.|@/i.test(l)) || head[0] || null;
+    if (merchant && /\bneureiter\b|n\s*e\s*u\s*r\s*e\s*i\s*t\s*e\s*r/i.test(merchant)) merchant = 'Neureiter Maschinen GmbH';
+    const addr=head
+      .filter(l=>/\d|A-|AT-|straße|str\.|weg|gasse|platz|pl\./i.test(l))
+      .slice(0,3);
+    return {merchant, address: addr.length?addr.join(", "):null};
+  }
   function extract(payload){ const text=payload?.text?payload.text:""; const {merchant,address}=extractMerchantBlock(text); const {dateISO}=extractDate(text); const {time}=extractTime(text); const {vatId}=extractVatId(text); const {phone}=extractPhone(text); const {invoiceNumber}=extractInvoiceNumber(text); const tx=extractTotalFromText(text); const {productName}=extractItemName(text); const total=tx.total; return {merchant,address,phone,vatId,invoiceNumber,dateISO,time,productName,total,currency:Number.isFinite(total)?'EUR':null,debug:{totalFromText:tx}}; }
   return { extract };
 })();
