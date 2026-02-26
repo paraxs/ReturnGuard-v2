@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">ReturnGuard</string>
+    <string name="notification_channel_name">ReturnGuard Erinnerungen</string>
+    <string name="notification_channel_description">Hinweise zu bevorstehenden Rückgabefristen</string>
+</resources>
