@@ -2,6 +2,7 @@ package com.returnguard.app
 
 import android.Manifest
 import android.app.Activity
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -109,6 +110,14 @@ class MainActivity : ComponentActivity() {
                                     error.message ?: "Scanner konnte nicht gestartet werden.",
                                 )
                             }
+                    },
+                    onShareDebugReport = { subject, body ->
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_SUBJECT, subject)
+                            putExtra(Intent.EXTRA_TEXT, body)
+                        }
+                        startActivity(Intent.createChooser(shareIntent, "Debug-Report teilen"))
                     },
                 )
             }

@@ -46,6 +46,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.time.LocalDate
+import java.time.LocalDateTime
+import org.json.JSONArray
+import org.json.JSONObject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,6 +58,7 @@ fun MainScreen(
     onImportClick: () -> Unit,
     onRunReminderNow: () -> Unit,
     onScanClick: () -> Unit,
+    onShareDebugReport: (String, String) -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -157,6 +161,7 @@ fun MainScreen(
     if (showAddDialog) {
         AddItemDialog(
             initialDraft = uiState.pendingOcrDraft,
+            onShareDebugReport = onShareDebugReport,
             onDismiss = {
                 viewModel.consumePendingOcrDraft()
                 showAddDialog = false
@@ -245,6 +250,7 @@ private fun PurchaseCard(
 @Composable
 private fun AddItemDialog(
     initialDraft: NewItemDraft?,
+    onShareDebugReport: (String, String) -> Unit,
     onDismiss: () -> Unit,
     onSave: (NewItemDraft) -> Unit,
 ) {
@@ -288,6 +294,7 @@ private fun AddItemDialog(
                     OcrConfidenceHint(confidence)
                 }
                 initialDraft?.ocrDebug?.let { debug ->
+                    val debugDraft = initialDraft
                     FilterChip(
                         selected = showDebugPanel,
                         onClick = { showDebugPanel = !showDebugPanel },
@@ -297,6 +304,25 @@ private fun AddItemDialog(
                     )
                     if (showDebugPanel) {
                         OcrDebugPanel(debug)
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            val report = buildDebugShareReport(
+                                draft = debugDraft,
+                                currentProduct = productName,
+                                currentMerchant = merchant,
+                                currentPurchaseDate = purchaseDate,
+                                currentPrice = price,
+                                currentNotes = notes,
+                            )
+                            onShareDebugReport(
+                                "ReturnGuard OCR Debug Report",
+                                report,
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Debug-Report teilen")
                     }
                 }
                 if (requiresSaveGuard) {
@@ -517,6 +543,103 @@ private fun OcrCandidateList(title: String, candidates: List<OcrDebugCandidate>)
             style = MaterialTheme.typography.bodySmall,
         )
     }
+}
+
+private fun buildDebugShareReport(
+    draft: NewItemDraft,
+    currentProduct: String,
+    currentMerchant: String,
+    currentPurchaseDate: String,
+    currentPrice: String,
+    currentNotes: String,
+): String {
+    val generatedAt = LocalDateTime.now().toString()
+    val json = JSONObject().apply {
+        put("generatedAt", generatedAt)
+        put("app", "ReturnGuard Android")
+        put("type", "ocr_debug_report")
+        put(
+            "ocrConfidence",
+            draft.ocrConfidence?.let { confidence ->
+                JSONObject().apply {
+                    put("overallPercent", confidence.overallPercent)
+                    put("level", confidence.level.label)
+                    val fieldsJson = JSONObject()
+                    confidence.fields.forEach { (name, field) ->
+                        fieldsJson.put(
+                            name,
+                            JSONObject().apply {
+                                put("percent", field.percent)
+                                put("source", field.source)
+                            },
+                        )
+                    }
+                    put("fields", fieldsJson)
+                }
+            } ?: JSONObject.NULL,
+        )
+        put(
+            "ocrDraft",
+            JSONObject().apply {
+                put("productName", draft.productName)
+                put("merchant", draft.merchant)
+                put("purchaseDateIso", draft.purchaseDateIso)
+                put("returnDays", draft.returnDays)
+                put("warrantyMonths", draft.warrantyMonths)
+                put("priceInput", draft.priceInput)
+                put("notes", draft.notes)
+            },
+        )
+        put(
+            "currentForm",
+            JSONObject().apply {
+                put("productName", currentProduct)
+                put("merchant", currentMerchant)
+                put("purchaseDateIso", currentPurchaseDate)
+                put("priceInput", currentPrice)
+                put("notes", currentNotes)
+            },
+        )
+        put(
+            "ocrDebug",
+            draft.ocrDebug?.let { debug ->
+                JSONObject().apply {
+                    put("rawText", debug.rawText)
+                    put("productCandidates", candidatesToJson(debug.productCandidates))
+                    put("merchantCandidates", candidatesToJson(debug.merchantCandidates))
+                    put("dateCandidates", candidatesToJson(debug.dateCandidates))
+                    put("priceCandidates", candidatesToJson(debug.priceCandidates))
+                }
+            } ?: JSONObject.NULL,
+        )
+    }
+
+    val jsonPretty = json.toString(2)
+    return buildString {
+        appendLine("ReturnGuard OCR Debug Report")
+        appendLine("generatedAt: $generatedAt")
+        appendLine("product(current): $currentProduct")
+        appendLine("merchant(current): $currentMerchant")
+        appendLine("purchaseDate(current): $currentPurchaseDate")
+        appendLine("price(current): $currentPrice")
+        appendLine()
+        appendLine("JSON")
+        appendLine(jsonPretty)
+    }
+}
+
+private fun candidatesToJson(candidates: List<OcrDebugCandidate>): JSONArray {
+    val arr = JSONArray()
+    candidates.forEach { candidate ->
+        arr.put(
+            JSONObject().apply {
+                put("value", candidate.value)
+                put("score", candidate.score)
+                put("source", candidate.source)
+            },
+        )
+    }
+    return arr
 }
 
 private fun formatDays(daysLeft: Int): String {
