@@ -277,7 +277,13 @@ private fun AddItemDialog(
         onDismissRequest = onDismiss,
         title = { Text("Neuen Einkauf anlegen") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 560.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 initialDraft?.ocrConfidence?.let { confidence ->
                     OcrConfidenceHint(confidence)
                 }
