@@ -20,9 +20,10 @@ Dieses Verzeichnis enthält den Startpunkt für die native Android-App.
 3. App auf Emulator/Gerät starten
 4. Smoke-Test durchführen: `docs/smoke-test-plan-week5-6.md`
 5. Matrixlauf durchführen: `docs/smoke-test-matrix-v0.1.0-beta.md`
-6. OCR-Heuristiken mit realen Belegen feinjustieren (verschiedene Layouts)
-7. Roadmap abarbeiten: `docs/playstore-roadmap.md`
-8. Release-Status: `docs/releases/v0.1.0-beta.md` + `../CHANGELOG.md`
+6. Phase-2 Leitfaden: `docs/phase2-execution.md` und `docs/phase2-error-tracker.md`
+7. OCR-Heuristiken mit realen Belegen feinjustieren (verschiedene Layouts)
+8. Roadmap abarbeiten: `docs/playstore-roadmap.md`
+9. Release-Status: `docs/releases/v0.1.0-beta.md` + `../CHANGELOG.md`
 
 ## Hinweis
 

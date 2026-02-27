@@ -24,7 +24,7 @@ Target version: `v0.1.0-beta`
 
 | ID | Vendor/Layout | Image Quality | Product | Merchant | Date | Price | Confidence Overall | Confidence Price | Save Guard Triggered | Notes |
 |---|---|---|---|---|---|---|---:|---:|---|---|
-| 01 |  |  |  |  |  |  |  |  |  |  |
+| 01 | Neureiter invoice (A4, logo-heavy) | high | OK | OK | OK | OK | 68 | 75 | No | Baseline control sample after confidence calibration |
 | 02 |  |  |  |  |  |  |  |  |  |  |
 | 03 |  |  |  |  |  |  |  |  |  |  |
 | 04 |  |  |  |  |  |  |  |  |  |  |
@@ -56,12 +56,12 @@ Target version: `v0.1.0-beta`
 | 30 |  |  |  |  |  |  |  |  |  |  |
 
 ## Summary block
-- Product accuracy: `__ / 30`
-- Merchant accuracy: `__ / 30`
-- Date accuracy: `__ / 30`
-- Price accuracy: `__ / 30`
-- Crash count: `__`
-- Go/No-Go: `__`
+- Product accuracy: `1 / 1` (29 pending)
+- Merchant accuracy: `1 / 1` (29 pending)
+- Date accuracy: `1 / 1` (29 pending)
+- Price accuracy: `1 / 1` (29 pending)
+- Crash count: `0`
+- Go/No-Go: `pending (dataset incomplete)`
 
 ## Triage notes
 - List top 3 recurring extraction errors with receipt IDs.
