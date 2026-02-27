@@ -1,4 +1,4 @@
-# ReturnGuard Android Basis (Woche 1-4)
+# ReturnGuard Android Basis (v0.1.0-beta)
 
 Dieses Verzeichnis enthält den Startpunkt für die native Android-App.
 
@@ -19,8 +19,10 @@ Dieses Verzeichnis enthält den Startpunkt für die native Android-App.
 2. Gradle Sync ausführen
 3. App auf Emulator/Gerät starten
 4. Smoke-Test durchführen: `docs/smoke-test-plan-week5-6.md`
-5. OCR-Heuristiken mit realen Belegen feinjustieren (verschiedene Layouts)
-6. Danach Play-Store-Readiness (Icons, Privacy, Release-Signing, QA)
+5. Matrixlauf durchführen: `docs/smoke-test-matrix-v0.1.0-beta.md`
+6. OCR-Heuristiken mit realen Belegen feinjustieren (verschiedene Layouts)
+7. Roadmap abarbeiten: `docs/playstore-roadmap.md`
+8. Release-Status: `docs/releases/v0.1.0-beta.md` + `../CHANGELOG.md`
 
 ## Hinweis
 
