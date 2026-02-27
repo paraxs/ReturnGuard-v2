@@ -7,7 +7,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -245,12 +248,15 @@ private fun AddItemDialog(
     onDismiss: () -> Unit,
     onSave: (NewItemDraft) -> Unit,
 ) {
+    val requiresSaveGuard = (initialDraft?.ocrConfidence?.overallPercent ?: 100) < OCR_SAVE_GUARD_THRESHOLD
     val draftKey = listOf(
         initialDraft?.productName.orEmpty(),
         initialDraft?.merchant.orEmpty(),
         initialDraft?.purchaseDateIso.orEmpty(),
         initialDraft?.priceInput.orEmpty(),
         initialDraft?.notes.orEmpty(),
+        initialDraft?.ocrConfidence?.overallPercent?.toString().orEmpty(),
+        initialDraft?.ocrDebug?.rawText?.hashCode()?.toString().orEmpty(),
     ).joinToString("|")
 
     var productName by rememberSaveable(draftKey) { mutableStateOf(initialDraft?.productName.orEmpty()) }
@@ -262,15 +268,70 @@ private fun AddItemDialog(
     var warrantyMonths by rememberSaveable(draftKey) { mutableStateOf(initialDraft?.warrantyMonths ?: "24") }
     var price by rememberSaveable(draftKey) { mutableStateOf(initialDraft?.priceInput.orEmpty()) }
     var notes by rememberSaveable(draftKey) { mutableStateOf(initialDraft?.notes.orEmpty()) }
+    var productConfirmed by rememberSaveable(draftKey) { mutableStateOf(!requiresSaveGuard) }
+    var priceConfirmed by rememberSaveable(draftKey) { mutableStateOf(!requiresSaveGuard) }
+    var showDebugPanel by rememberSaveable(draftKey) { mutableStateOf(false) }
+    val canSave = productName.isNotBlank() && (!requiresSaveGuard || (productConfirmed && priceConfirmed))
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Neuen Einkauf anlegen") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                initialDraft?.ocrConfidence?.let { confidence ->
+                    OcrConfidenceHint(confidence)
+                }
+                initialDraft?.ocrDebug?.let { debug ->
+                    FilterChip(
+                        selected = showDebugPanel,
+                        onClick = { showDebugPanel = !showDebugPanel },
+                        label = {
+                            Text(if (showDebugPanel) "OCR-Debug ausblenden" else "OCR-Debug anzeigen")
+                        },
+                    )
+                    if (showDebugPanel) {
+                        OcrDebugPanel(debug)
+                    }
+                }
+                if (requiresSaveGuard) {
+                    Card {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Text(
+                                "Unsicherer OCR-Entwurf (< ${OCR_SAVE_GUARD_THRESHOLD}%).",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                "Bitte Produkt und Preis aktiv bestaetigen, bevor gespeichert wird.",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FilterChip(
+                                    selected = productConfirmed,
+                                    onClick = { productConfirmed = !productConfirmed },
+                                    label = { Text("Produkt geprueft") },
+                                )
+                                FilterChip(
+                                    selected = priceConfirmed,
+                                    onClick = { priceConfirmed = !priceConfirmed },
+                                    label = { Text("Preis geprueft") },
+                                )
+                            }
+                        }
+                    }
+                }
                 OutlinedTextField(
                     value = productName,
-                    onValueChange = { productName = it },
+                    onValueChange = {
+                        productName = it
+                        if (requiresSaveGuard) {
+                            productConfirmed = false
+                        }
+                    },
                     label = { Text("Produkt*") },
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -302,7 +363,12 @@ private fun AddItemDialog(
                 }
                 OutlinedTextField(
                     value = price,
-                    onValueChange = { price = it },
+                    onValueChange = {
+                        price = it
+                        if (requiresSaveGuard) {
+                            priceConfirmed = false
+                        }
+                    },
                     label = { Text("Preis in EUR") },
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -328,10 +394,12 @@ private fun AddItemDialog(
                             warrantyMonths = warrantyMonths,
                             priceInput = price,
                             notes = notes,
+                            ocrConfidence = initialDraft?.ocrConfidence,
+                            ocrDebug = initialDraft?.ocrDebug,
                         ),
                     )
                 },
-                enabled = productName.isNotBlank(),
+                enabled = canSave,
             ) {
                 Text("Speichern")
             }
@@ -344,6 +412,107 @@ private fun AddItemDialog(
     )
 }
 
+@Composable
+private fun OcrConfidenceHint(confidence: OcrConfidence) {
+    val label = when (confidence.level) {
+        OcrConfidenceLevel.HIGH -> "hoch"
+        OcrConfidenceLevel.MEDIUM -> "mittel"
+        OcrConfidenceLevel.LOW -> "niedrig"
+    }
+    val toneColor = when (confidence.level) {
+        OcrConfidenceLevel.HIGH -> MaterialTheme.colorScheme.primary
+        OcrConfidenceLevel.MEDIUM -> MaterialTheme.colorScheme.tertiary
+        OcrConfidenceLevel.LOW -> MaterialTheme.colorScheme.error
+    }
+    val product = confidence.fields["Produkt"]?.percent ?: 0
+    val merchant = confidence.fields["Haendler"]?.percent ?: 0
+    val date = confidence.fields["Kaufdatum"]?.percent ?: 0
+    val price = confidence.fields["Preis"]?.percent ?: 0
+    val weakFields = confidence.fields
+        .filterValues { it.percent < 60 }
+        .keys
+        .joinToString(", ")
+
+    Card {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                "OCR-Qualitaet: ${confidence.overallPercent}% ($label)",
+                style = MaterialTheme.typography.bodyMedium,
+                color = toneColor,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                "Produkt $product% | Haendler $merchant% | Kaufdatum $date% | Preis $price%",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            if (weakFields.isNotBlank()) {
+                Text(
+                    "Unsicher: $weakFields",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun OcrDebugPanel(debug: OcrDebugInfo) {
+    Card {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                "OCR-Debug (Rohtext + Kandidaten)",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            OcrCandidateList("Produkt", debug.productCandidates)
+            OcrCandidateList("Haendler", debug.merchantCandidates)
+            OcrCandidateList("Kaufdatum", debug.dateCandidates)
+            OcrCandidateList("Preis", debug.priceCandidates)
+
+            Text("Rohtext", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 180.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                Text(
+                    text = debug.rawText.take(OCR_DEBUG_RAW_TEXT_MAX_CHARS),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            if (debug.rawText.length > OCR_DEBUG_RAW_TEXT_MAX_CHARS) {
+                Text(
+                    "Rohtext gekuerzt auf ${OCR_DEBUG_RAW_TEXT_MAX_CHARS} Zeichen.",
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun OcrCandidateList(title: String, candidates: List<OcrDebugCandidate>) {
+    Text("$title-Kandidaten", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+    if (candidates.isEmpty()) {
+        Text("-", style = MaterialTheme.typography.bodySmall)
+        return
+    }
+    candidates.take(OCR_DEBUG_UI_CANDIDATE_LIMIT).forEachIndexed { index, candidate ->
+        Text(
+            text = "${index + 1}. ${candidate.value} [${candidate.score}] (${candidate.source})",
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
 private fun formatDays(daysLeft: Int): String {
     return when {
         daysLeft < 0 -> "verpasst"
@@ -352,3 +521,7 @@ private fun formatDays(daysLeft: Int): String {
         else -> "in $daysLeft Tagen"
     }
 }
+
+private const val OCR_SAVE_GUARD_THRESHOLD = 55
+private const val OCR_DEBUG_UI_CANDIDATE_LIMIT = 6
+private const val OCR_DEBUG_RAW_TEXT_MAX_CHARS = 4000
