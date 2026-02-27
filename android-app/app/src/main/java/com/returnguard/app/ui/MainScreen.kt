@@ -167,9 +167,11 @@ fun MainScreen(
                 showAddDialog = false
             },
             onSave = { draft ->
-                viewModel.addItem(draft)
-                viewModel.consumePendingOcrDraft()
-                showAddDialog = false
+                val accepted = viewModel.addItem(draft)
+                if (accepted) {
+                    viewModel.consumePendingOcrDraft()
+                    showAddDialog = false
+                }
             },
         )
     }
@@ -428,6 +430,7 @@ private fun AddItemDialog(
                             notes = notes,
                             ocrConfidence = initialDraft?.ocrConfidence,
                             ocrDebug = initialDraft?.ocrDebug,
+                            draftCreatedAtMillis = initialDraft?.draftCreatedAtMillis ?: System.currentTimeMillis(),
                         ),
                     )
                 },

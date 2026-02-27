@@ -14,7 +14,9 @@ import com.returnguard.app.data.repository.NewPurchaseInput
 import com.returnguard.app.data.repository.PurchaseRepository
 import com.returnguard.app.reminder.ReminderScheduler
 import java.text.NumberFormat
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
@@ -38,6 +40,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val statusMessage = MutableStateFlow<String?>(null)
     private val pendingOcrDraft = MutableStateFlow<NewItemDraft?>(null)
     private val isOcrRunning = MutableStateFlow(false)
+    private var pendingDuplicateConfirmationKey: String? = null
 
     private val dateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy")
     private val currencyFormatter = NumberFormat.getCurrencyInstance(Locale.GERMANY)
@@ -81,21 +84,52 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         statusMessage.value = null
     }
 
-    fun addItem(draft: NewItemDraft) {
+    fun addItem(draft: NewItemDraft): Boolean {
         if (draft.productName.isBlank()) {
             statusMessage.value = "Produktname fehlt."
-            return
+            return false
         }
+        val purchaseDate = parseDate(draft.purchaseDateIso)
+        val priceCents = parsePriceCents(draft.priceInput)
+        val createdAtDate = resolveDraftCreatedAtDate(draft)
+        if (shouldBlockByDateRecency(draft, purchaseDate, createdAtDate)) {
+            statusMessage.value =
+                "Kaufdatum ${purchaseDate} wirkt fuer diesen OCR-Entwurf (erstellt ${createdAtDate}) unplausibel alt. Bitte Datum pruefen."
+            return false
+        }
+        val duplicateKey = buildDuplicateKey(
+            productName = draft.productName,
+            merchant = draft.merchant,
+            purchaseDate = purchaseDate,
+            priceCents = priceCents,
+        )
+        val duplicate = findExactDuplicate(
+            productName = draft.productName,
+            merchant = draft.merchant,
+            purchaseDate = purchaseDate,
+            priceCents = priceCents,
+        )
+        if (duplicate != null) {
+            val alreadyConfirmed = pendingDuplicateConfirmationKey == duplicateKey
+            if (!alreadyConfirmed) {
+                pendingDuplicateConfirmationKey = duplicateKey
+                statusMessage.value =
+                    "Eintrag existiert bereits (Kaufdatum ${purchaseDate}, Preis ${draft.priceInput.ifBlank { "-" }}). Erneut auf Speichern tippen, um trotzdem zu speichern."
+                return false
+            }
+            statusMessage.value = "Hinweis: Eintrag existiert bereits. Wird erneut gespeichert."
+        }
+        pendingDuplicateConfirmationKey = null
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 repository.add(
                     NewPurchaseInput(
                         productName = draft.productName,
                         merchant = draft.merchant,
-                        purchaseDate = parseDate(draft.purchaseDateIso),
+                        purchaseDate = purchaseDate,
                         returnDays = draft.returnDays.toIntOrNull() ?: 14,
                         warrantyMonths = draft.warrantyMonths.toIntOrNull() ?: 24,
-                        priceCents = parsePriceCents(draft.priceInput),
+                        priceCents = priceCents,
                         notes = draft.notes,
                     ),
                 )
@@ -105,6 +139,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 statusMessage.value = "Speichern fehlgeschlagen: ${error.message}"
             }
         }
+        return true
     }
 
     fun deleteItem(id: String) {
@@ -242,6 +277,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             notes = buildOcrNotes(confidence),
             ocrConfidence = confidence,
             ocrDebug = debugInfo,
+            draftCreatedAtMillis = System.currentTimeMillis(),
         )
     }
 
@@ -356,6 +392,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     if (nonPurchaseDateKeywords.any { lower.contains(it) }) score -= 4
                     if (parsed.isAfter(today.plusDays(7))) score -= 6
                     if (parsed.year < 2000) score -= 2
+                    if (parsed.isBefore(today.minusYears(MAX_PURCHASE_AGE_YEARS.toLong()))) score -= 14
+                    if (parsed.isBefore(today.minusYears(5)) && !dateHintKeywords.any { lower.contains(it) }) score -= 5
                     val hasHint = dateHintKeywords.any { lower.contains(it) }
                     add(DateCandidate(parsed, score, hasHint))
                 }
@@ -509,14 +547,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val line = cleanupCompanyLine(rawLine)
             if (line.length < 3) return@mapIndexedNotNull null
             val lower = line.lowercase(Locale.ROOT)
+            if (isLikelyMerchantMetaLine(line, lower)) return@mapIndexedNotNull null
+            if (headerLabelRegex.containsMatchIn(line)) return@mapIndexedNotNull null
+            if (blockedMerchantKeywords.any { lower.contains(it) }) return@mapIndexedNotNull null
 
             var score = 0
             if (index < 20) score += 3
             if (looksLikeNeureiter(lower)) score += 12
             if (companyHintKeywords.any { lower.contains(it) }) score += 6
             if (line.contains("www.", ignoreCase = true)) score += 2
-            if (blockedMerchantKeywords.any { lower.contains(it) }) score -= 6
-            if (isCustomerContext(lines, index)) score -= 8
+            if (isCustomerContext(lines, index) && !looksLikeNeureiter(lower)) return@mapIndexedNotNull null
             if (lower.contains(" e.u") || lower.contains(" e.u.")) score -= 3
 
             val digits = line.count { it.isDigit() }
@@ -709,13 +749,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun isCustomerContext(lines: List<String>, index: Int): Boolean {
-        val from = (index - 2).coerceAtLeast(0)
-        val to = (index + 1).coerceAtMost(lines.lastIndex)
+        val from = (index - 5).coerceAtLeast(0)
+        val to = (index + 5).coerceAtMost(lines.lastIndex)
+        var anchorIndex = -1
         for (i in from..to) {
             val lower = lines[i].lowercase(Locale.ROOT)
-            if (lower.contains("firma") || lower.contains("kunde")) return true
+            if (customerContextAnchorKeywords.any { lower.contains(it) }) {
+                anchorIndex = i
+                break
+            }
         }
-        return false
+        if (anchorIndex == -1) return false
+        if (index in anchorIndex..(anchorIndex + CUSTOMER_CONTEXT_SPAN).coerceAtMost(lines.lastIndex)) return true
+        val lower = lines[index].lowercase(Locale.ROOT)
+        return addressLineRegex.containsMatchIn(lower)
     }
 
     private fun looksLikeNeureiter(lower: String): Boolean {
@@ -727,6 +774,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .replace(Regex("^[^\\p{L}\\d]+"), "")
             .replace(Regex("[^\\p{L}\\d]+$"), "")
             .trim()
+        if (isLikelyMerchantMetaLine(cleaned)) {
+            return "Unbekannter Haendler"
+        }
         if (cleaned.lowercase(Locale.ROOT).startsWith("firma ")) {
             cleaned = cleaned.removePrefix("Firma ").removePrefix("firma ").trim()
         }
@@ -749,6 +799,78 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (phonePatternRegex.containsMatchIn(line)) return true
         if (line.contains("|") && line.count { it.isDigit() } >= 6) return true
         return false
+    }
+
+    private fun isLikelyMerchantMetaLine(line: String, lowerInput: String? = null): Boolean {
+        val lower = lowerInput ?: line.lowercase(Locale.ROOT)
+        if (merchantMetaKeywordRegex.containsMatchIn(lower)) return true
+        if (urlOrEmailRegex.containsMatchIn(lower)) return true
+        if (isLikelyContactLine(line, lower)) return true
+        if (amountRegex.containsMatchIn(normalizeAmountOcrNoise(line)) && !looksLikeNeureiter(lower)) return true
+        if (dateLikeRegex.containsMatchIn(line) && !looksLikeNeureiter(lower)) return true
+        val digitCount = line.count { it.isDigit() }
+        if (digitCount >= 9 && companyHintKeywords.none { lower.contains(it) }) return true
+        return false
+    }
+
+    private fun shouldBlockByDateRecency(draft: NewItemDraft, purchaseDate: LocalDate, createdAt: LocalDate): Boolean {
+        val isTooOld = purchaseDate.isBefore(createdAt.minusYears(MAX_PURCHASE_AGE_YEARS.toLong()))
+        if (!isTooOld) return false
+        val isOcrDraft = draft.ocrConfidence != null || draft.notes.contains("OCR-Entwurf", ignoreCase = true)
+        if (!isOcrDraft) return false
+        val dateConfidence = draft.ocrConfidence?.fields?.get("Kaufdatum")?.percent ?: 100
+        val notesLower = draft.notes.lowercase(Locale.ROOT)
+        val dateMarkedUncertain = notesLower.contains("unsicher:") && notesLower.contains("kaufdatum")
+        return dateConfidence < 70 || dateMarkedUncertain
+    }
+
+    private fun resolveDraftCreatedAtDate(draft: NewItemDraft): LocalDate {
+        val createdAtMillis = draft.draftCreatedAtMillis.takeIf { it > 0 } ?: System.currentTimeMillis()
+        return runCatching {
+            Instant.ofEpochMilli(createdAtMillis)
+                .atZone(ZoneId.systemDefault())
+                .toLocalDate()
+        }.getOrElse {
+            LocalDate.now()
+        }
+    }
+
+    private fun findExactDuplicate(
+        productName: String,
+        merchant: String,
+        purchaseDate: LocalDate,
+        priceCents: Long?,
+    ): PurchaseEntity? {
+        val normalizedProduct = normalizeDuplicateKey(productName)
+        val normalizedMerchant = normalizeDuplicateKey(merchant)
+        val targetEpochDay = purchaseDate.toEpochDay()
+        val targetPrice = priceCents ?: DUPLICATE_EMPTY_PRICE
+        return allItems.value.firstOrNull { entity ->
+            normalizeDuplicateKey(entity.productName) == normalizedProduct &&
+                normalizeDuplicateKey(entity.merchant) == normalizedMerchant &&
+                entity.purchaseDateEpochDay == targetEpochDay &&
+                (entity.priceCents ?: DUPLICATE_EMPTY_PRICE) == targetPrice
+        }
+    }
+
+    private fun buildDuplicateKey(
+        productName: String,
+        merchant: String,
+        purchaseDate: LocalDate,
+        priceCents: Long?,
+    ): String {
+        val normalizedProduct = normalizeDuplicateKey(productName)
+        val normalizedMerchant = normalizeDuplicateKey(merchant)
+        val targetPrice = priceCents ?: DUPLICATE_EMPTY_PRICE
+        return listOf(normalizedProduct, normalizedMerchant, purchaseDate.toEpochDay().toString(), targetPrice.toString())
+            .joinToString("|")
+    }
+
+    private fun normalizeDuplicateKey(value: String): String {
+        return normalizeLine(value)
+            .lowercase(Locale.ROOT)
+            .replace(Regex("[^\\p{L}\\d]+"), " ")
+            .trim()
     }
 
     private fun parseDate(raw: String): LocalDate {
@@ -1022,10 +1144,51 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             "seite",
             "uid",
             "iban",
+            "fn",
             "artikel",
             "anzahl",
             "summe",
+            "gesamt",
+            "nettobetrag",
+            "nettosumme",
+            "mehrwertsteuer",
+            "mwst",
             "kunden",
+            "zahlbar",
+            "zahlung",
+            "bankeingang",
+            "versand",
+            "zustellung",
+            "unterschrift",
+            "ware erhalten",
+            "agb",
+            "kontakt",
+            "email",
+            "www.",
+            "http",
+            "auftragsnummer",
+            "bestellnummer",
+            "kundennummer",
+            "rechnungsnr",
+            "kundenservice",
+        )
+        private val merchantMetaKeywordRegex = Regex(
+            "\\b(agb|zahlbar|zahlung|unterschrift|ware\\s+erhalten|kundenservice|kundeservice|service\\s*line|impressum|lieferbedingungen)\\b",
+            RegexOption.IGNORE_CASE,
+        )
+        private val urlOrEmailRegex = Regex("(https?://|www\\.|@)", RegexOption.IGNORE_CASE)
+        private val addressLineRegex = Regex(
+            "(\\b\\d{4,5}\\s+[\\p{L}\\-]+\\b|\\b[\\p{L}\\-]{3,}\\s+\\d{1,4}\\b)",
+            RegexOption.IGNORE_CASE,
+        )
+        private val customerContextAnchorKeywords = listOf(
+            "firma",
+            "kunde",
+            "kundenadresse",
+            "rechnungsempfaenger",
+            "lieferadresse",
+            "bill to",
+            "ship to",
         )
 
         private val productHeaderKeywords = listOf(
@@ -1061,6 +1224,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
         private const val OCR_DEBUG_CANDIDATE_LIMIT = 8
         private const val PRODUCT_FREETEXT_SKIP_TOP_LINES = 14
+        private const val MAX_PURCHASE_AGE_YEARS = 7
+        private const val DUPLICATE_EMPTY_PRICE = -1L
+        private const val CUSTOMER_CONTEXT_SPAN = 8
     }
 }
 
@@ -1097,6 +1263,7 @@ data class NewItemDraft(
     val notes: String,
     val ocrConfidence: OcrConfidence? = null,
     val ocrDebug: OcrDebugInfo? = null,
+    val draftCreatedAtMillis: Long = 0L,
 )
 
 data class OcrConfidence(
